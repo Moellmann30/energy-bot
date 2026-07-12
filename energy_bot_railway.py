@@ -109,22 +109,20 @@ QUESTIONS = [
 
 async def start(update: Update, context):
     context.user_data["scores"] = []
-    context.user_data["q_num"] = 0
     
-    text = "🔋 **ПРИВЕТ! Я ТВЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!** 💚\n\nЭто быстрый тест чтобы понять, почему ты устаёшь.\n\nВсего 10 простых вопросов - и ты получишь персональное заключение!\n\n⏱️ Займет всего 5 минут!\n\nПоехали? 🚀"
+    text = "🔋 **ПРИВЕТ! Я ТВОЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!** 💚\n\nЭто быстрый тест чтобы понять, почему ты устаёшь.\n\nВсего 10 простых вопросов - и ты получишь персональное заключение!\n\n⏱️ Займет всего 5 минут!\n\nПоехали? 🚀"
     kb = [[InlineKeyboardButton("✅ Начинаем!", callback_data="go")]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     return 0
 
 async def ask_question(query, context, q_idx):
-    if q_idx >= 10:
-        await show_results(query, context)
-        return ConversationHandler.END
-    
+    if q_idx >= len(QUESTIONS):
+        return await show_results(query, context)
+        
     q = QUESTIONS[q_idx]
     kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in q["options"]]
     
-    msg = f"**Вопрос {q_idx + 1}/10**\n\n{q['text']}"
+    msg = f"**Вопрос {q_idx + 1}/{len(QUESTIONS)}**\n\n{q['text']}"
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     return 0
 
@@ -135,17 +133,27 @@ async def handle_answer(update: Update, context):
     if query.data == "go":
         return await ask_question(query, context, 0)
     
-    parts = query.data.split("_")
-    score = int(parts[1])
-    q_idx = int(parts[2])
-    
+    # Безопасный парсинг данных кнопки
+    try:
+        parts = query.data.split("_")
+        score = int(parts[1])
+        q_idx = int(parts[2])
+    except (ValueError, IndexError):
+        return 0
+
+    # Защита на случай, если пользователь кликает старые кнопки или данные стерлись
+    if "scores" not in context.user_data:
+        context.user_data["scores"] = []
+        
     context.user_data["scores"].append(score)
     next_idx = q_idx + 1
     
     return await ask_question(query, context, next_idx)
 
 async def show_results(query, context):
-    total = sum(context.user_data["scores"])
+    # Безопасный подсчет суммы
+    scores = context.user_data.get("scores", [])
+    total = sum(scores)
     
     if total <= 12:
         text = f"""✨ **ОТЛИЧНО! ХОРОШЕЕ СОСТОЯНИЕ!** ✨
@@ -198,7 +206,7 @@ async def show_results(query, context):
 
 ❌ Это не нормально! Это срочно!
 
-💚 **ENERGY - ЭТО ТВО СПАСЕНИЕ!**
+💚 **ENERGY - ЭТО ТВОЕ СПАСЕНИЕ!**
 
 За 30 дней:
 ✓ Вернешь энергию БЕЗ кофе
@@ -216,8 +224,11 @@ async def show_results(query, context):
     
     try:
         await context.bot.send_message(chat_id=ADMIN_ID, text=f"📊 Результат: {total}/30")
-    except:
-        pass
+    except Exception as e:
+        logger.error(f"Ошибка отправки админу: {e}")
+        
+    # Очищаем данные сессии после завершения теста
+    context.user_data.pop("scores", None)
     
     return ConversationHandler.END
 
@@ -227,7 +238,7 @@ def main():
     handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={0: [CallbackQueryHandler(handle_answer)]},
-        fallbacks=[]
+        fallbacks=[CommandHandler("start", start)] # Позволяет перезапустить тест в любой момент
     )
     
     app.add_handler(handler)
