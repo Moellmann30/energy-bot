@@ -7,7 +7,6 @@ import logging
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-REGISTRATION_LINK = os.getenv("REGISTRATION_LINK", "https://coral.club/7743642.html")
 
 if not TELEGRAM_TOKEN or ADMIN_ID == 0:
     raise ValueError("ОШИБКА: переменные не установлены!")
@@ -112,7 +111,7 @@ async def start(update: Update, context):
     context.user_data["scores"] = []
     context.user_data["q_num"] = 0
     
-    text = "🔋 **ПРИВЕТ!** 💚\n\n10 вопросов - узнаешь почему устаёшь!\n\n⏱️ Поехали?"
+    text = "🔋 **ПРИВЕТ! Я ТВЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!** 💚\n\nЭто быстрый тест чтобы понять, почему ты устаёшь.\n\nВсего 10 простых вопросов - и ты получишь персональное заключение!\n\n⏱️ Займет всего 5 минут!\n\nПоехали? 🚀"
     kb = [[InlineKeyboardButton("✅ Начинаем!", callback_data="go")]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     return 0
@@ -122,10 +121,10 @@ async def ask_question(query, context, q_idx):
         await show_results(query, context)
         return 1
     
-    q_text, options = QUESTIONS[q_idx]
-    kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in options]
+    q = QUESTIONS[q_idx]
+    kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in q["options"]]
     
-    msg = f"**Вопрос {q_idx + 1}/10**\n\n{q_text}"
+    msg = f"**Вопрос {q_idx + 1}/10**\n\n{q['text']}"
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     return 0
 
@@ -133,20 +132,17 @@ async def handle_answer(update: Update, context):
     query = update.callback_query
     await query.answer()
     
-    data = query.data
-    
-    if data == "go":
+    if query.data == "go":
         return await ask_question(query, context, 0)
     
-    else:
-        parts = data.split("_")
-        score = int(parts[1])
-        q_idx = int(parts[2])
-        
-        context.user_data["scores"].append(score)
-        next_idx = q_idx + 1
-        
-        return await ask_question(query, context, next_idx)
+    parts = query.data.split("_")
+    score = int(parts[1])
+    q_idx = int(parts[2])
+    
+    context.user_data["scores"].append(score)
+    next_idx = q_idx + 1
+    
+    return await ask_question(query, context, next_idx)
 
 async def show_results(query, context):
     total = sum(context.user_data["scores"])
@@ -154,40 +150,67 @@ async def show_results(query, context):
     if total <= 12:
         text = f"""✨ **ОТЛИЧНО! ХОРОШЕЕ СОСТОЯНИЕ!** ✨
 
-Результат: **{total}/30** 🟢
+Твой результат: **{total}/30 баллов** 🟢
 
-✓ Энергия в норме
-✓ Сон хороший  
-✓ Пищеварение OK
+💚 Твой организм работает хорошо!
+✓ Энергия на уровне
+✓ Сон в норме
+✓ Пищеварение в порядке
 
-💚 Хочешь еще лучше?
-📱 **@e_moellmann**"""
+🎯 **Если хочешь МАКСИМАЛЬНОЙ энергии:**
+Я готова помочь тебе сделать это еще ЛУЧШЕ!
+
+📱 **Напиши мне в Telegram:**
+@e_moellmann
+
+Расскажешь свои цели, и мы создадим персональный план для абсолютной энергии! 💪🚀"""
     
     elif total <= 20:
         text = f"""⚠️ **ОРГАНИЗМ ПРОСИТ ПОМОЩИ!** ⚠️
 
-Результат: **{total}/30** 🟡
+Твой результат: **{total}/30 баллов** 🟡
 
-Есть проблемы, но решаемо!
+🔍 **ВОТ ЧТО Я ВИЖУ:**
+Твой организм явно просит помощи!
+Это еще не критично, но ждать нельзя!
 
-💚 ENERGY за 30 дней:
-✓ Вернет энергию
-✓ Наладит пищеварение
+💚 **ENERGY создана ДЛЯ ТАКИХ СИТУАЦИЙ!**
 
-📱 **@e_moellmann**"""
+За 30 дней мы:
+✓ Восстановим твою энергию
+✓ Наладим пищеварение
+✓ Избавимся от усталости
+
+📱 **НАПИШИ МНЕ СЕЙЧАС:**
+@e_moellmann
+
+Мы разберемся вместе! 💪"""
     
     else:
-        text = f"""🚨 **КРИТИЧЕСКОЕ СОСТОЯНИЕ!** 🚨
+        text = f"""🚨 **СТОП! ТВОЕ СОСТОЯНИЕ КРИТИЧЕСКОЕ!** 🚨
 
-Результат: **{total}/30** 🔴
+Твой результат: **{total}/30 баллов** 🔴
 
-Срочно нужна помощь!
+⚠️ **ВОТ ЧТО ПРОИСХОДИТ:**
+✗ Критическая усталость
+✗ Организм истощен
+✗ Нужна срочная помощь
 
-💚 ENERGY - решение
-✓ Энергия без кофе
-✓ Восстановление
+❌ Это не нормально! Это срочно!
 
-⚡ **НАПИШИ: @e_moellmann**"""
+💚 **ENERGY - ЭТО ТВО СПАСЕНИЕ!**
+
+За 30 дней:
+✓ Вернешь энергию БЕЗ кофе
+✓ Восстановишь кишечник
+✓ Наладишь сон
+✓ Избавишься от усталости
+
+⚡ **ДЕЙСТВУЙ СЕЙЧАС:**
+📱 **Telegram: @e_moellmann**
+
+Напиши мне прямо сейчас!
+Это серьезно, не откладывай! 🔴"""
     
     await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
     
