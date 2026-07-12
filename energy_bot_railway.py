@@ -10,178 +10,330 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 REGISTRATION_LINK = os.getenv("REGISTRATION_LINK", "https://coral.club/7743642.html")
 
-if not TELEGRAM_TOKEN:
-    raise ValueError("❌ ОШИБКА: Переменная TELEGRAM_TOKEN не установлена!")
-if ADMIN_ID == 0:
-    raise ValueError("❌ ОШИБКА: Переменная ADMIN_ID не установлена!")
+if not TELEGRAM_TOKEN or ADMIN_ID == 0:
+    raise ValueError("❌ TELEGRAM_TOKEN и ADMIN_ID обязательны!")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-logger.info(f"✅ Бот запущен с токеном: {TELEGRAM_TOKEN[:20]}...")
-logger.info(f"✅ Admin ID: {ADMIN_ID}")
+(QUESTION_1, QUESTION_2, QUESTION_3, QUESTION_4, QUESTION_5, 
+ QUESTION_6, QUESTION_7, QUESTION_8, QUESTION_9, QUESTION_10, RESULTS) = range(11)
 
-(WAITING_NAME, WAITING_AGE, WAITING_CONTACT, WAITING_SYMPTOMS, WAITING_ENERGY, WAITING_WATER, WAITING_RESULTS, WAITING_DETOX_HISTORY, WAITING_COMMITMENT, WAITING_TARIFF_CHOICE, WAITING_SCREENSHOT, CONFIRMATION,) = range(12)
-
-SYMPTOMS_OPTIONS = [
-    "💤 Просыпаюсь уставшей, нет энергии с утра",
-    "🤢 Вздутие, метеоризм, дискомфорт после еды",
-    "⚖️ Вес стоит на месте даже на диетах",
-    "🍬 Дикая тяга к сладкому и мучному",
-    "🧴 Проблемная кожа, высыпания, тусклый цвет",
-    "☕ Не могу прожить день без 2-3 чашек кофе",
-    "💧 Отеки утром или вечером",
+QUESTIONS = [
+    {
+        "num": 1,
+        "text": "🌅 КАК ТЫ ПРОСЫПАЕШЬСЯ?",
+        "options": [
+            ("✅ Просыпаюсь бодрая, сразу встаю", 0),
+            ("🟡 Просыпаюсь, но еще 30 минут в полусне", 1),
+            ("🟠 Встаю с трудом, ничего не хочется", 2),
+            ("🔴 Просыпаюсь разбитой, как не спала", 3),
+        ]
+    },
+    {
+        "num": 2,
+        "text": "☕ ЧТО ТЫ ПЬЕШЬ С УТРА?",
+        "options": [
+            ("✅ Стакан воды и потом завтрак", 0),
+            ("🟡 Сразу кофе/чай, потом завтрак", 1),
+            ("🟠 Только кофе/чай, без завтрака", 2),
+            ("🔴 Ничего не пью, жду пока 'проснусь'", 3),
+        ]
+    },
+    {
+        "num": 3,
+        "text": "🍽️ ЗАВТРАКАЕШЬ ЛИ ТЫ?",
+        "options": [
+            ("✅ Да, полноценный (каша, белки, овощи)", 0),
+            ("🟡 Быстрый завтрак (тосты, йогурт)", 1),
+            ("🟠 Только напиток, завтрака нет", 2),
+            ("🔴 Пропускаю завтрак совсем", 3),
+        ]
+    },
+    {
+        "num": 4,
+        "text": "😴 КАК ТЫ ЧУВСТВУЕШЬ СЕБЯ ПОСЛЕ ЕДЫ?",
+        "options": [
+            ("✅ Энергичная, могу работать часы", 0),
+            ("🟡 Небольший подъем, потом опять усталость", 1),
+            ("🟠 Вздутие, тяжесть, хочется спать", 2),
+            ("🔴 Скачок сахара и потом падение энергии", 3),
+        ]
+    },
+    {
+        "num": 5,
+        "text": "💧 СКОЛЬКО ВОДЫ ПЬЕШЬ В ДЕНЬ?",
+        "options": [
+            ("✅ 2+ литра чистой воды регулярно", 0),
+            ("🟡 1.5-2 литра воды", 1),
+            ("🟠 1-1.5 литра чистой воды", 2),
+            ("🔴 Меньше литра (чай, кофе, соки вместо воды)", 3),
+        ]
+    },
+    {
+        "num": 6,
+        "text": "☕ КАК ЧАСТО ПЬЕШЬ КОФЕ/ЧАЙ?",
+        "options": [
+            ("✅ Не пью совсем или очень редко", 0),
+            ("🟡 1 чашка с утра", 1),
+            ("🟠 2-3 чашки в день", 2),
+            ("🔴 Целый день кофе, не могу без этого", 3),
+        ]
+    },
+    {
+        "num": 7,
+        "text": "⚡ ЧТО ПРОИСХОДИТ ПОСЛЕ КОФЕ?",
+        "options": [
+            ("✅ Ничего особенного, просто пью", 0),
+            ("🟡 Небольшой подъем на часик", 1),
+            ("🟠 Скачок энергии, потом падение", 2),
+            ("🔴 Зависима, без кофе не функционирую", 3),
+        ]
+    },
+    {
+        "num": 8,
+        "text": "😴 КАК У ТЕБЯ СО СНОМ?",
+        "options": [
+            ("✅ Сплю 7-8 часов, просыпаюсь отдохнувшей", 0),
+            ("🟡 Сплю неплохо, но иногда вскакиваю", 1),
+            ("🟠 Сплю мало (5-6 часов) или часто просыпаюсь", 2),
+            ("🔴 Спать трудно, но даже много сна не помогает", 3),
+        ]
+    },
+    {
+        "num": 9,
+        "text": "🤢 ПРОБЛЕМЫ С ПИЩЕВАРЕНИЕМ?",
+        "options": [
+            ("✅ Нет проблем, все нормально", 0),
+            ("🟡 Иногда вздутие после еды", 1),
+            ("🟠 Постоянное вздутие, газы, дискомфорт", 2),
+            ("🔴 Запоры или диарея, нарушение стула", 3),
+        ]
+    },
+    {
+        "num": 10,
+        "text": "🏃 ФИЗИЧЕСКАЯ АКТИВНОСТЬ?",
+        "options": [
+            ("✅ Занимаюсь спортом 3+ раз в неделю", 0),
+            ("🟡 Активный образ жизни, хожу пешком", 1),
+            ("🟠 Минимум движения, сидячая работа", 2),
+            ("🔴 Вообще не двигаюсь, везде на авто/транспорте", 3),
+        ]
+    },
 ]
 
-WATER_OPTIONS = ["💧 Пью мало воды", "💧 Пью 1-1.5 литров", "💧 Пью более 2 литров"]
-
-GOALS_OPTIONS = ["🫶 Плоский живот", "😴 Просыпаться бодрой", "⚖️ Сбросить вес", "🍽️ Здоровая тарелка"]
-
-def evaluate_results(user_data):
-    energy_level = user_data.get("energy", 5)
-    symptoms = user_data.get("symptoms", [])
-    symptom_count = len(symptoms)
-    has_gut_issues = any("Вздутие" in s for s in symptoms)
-    has_coffee = any("кофе" in s.lower() for s in symptoms)
-    
-    if energy_level <= 3 and symptom_count >= 5:
-        return ("🔴 КРИТИЧЕСКОЕ ИСТОЩЕНИЕ", "Твой организм в режиме красного флага.", "Тебе нужна ENERGY!")
-    elif energy_level <= 5 and has_gut_issues and symptom_count >= 3:
-        return ("🟠 СИНДРОМ УСТАЛОСТИ", "Ты застряла в цикле.", "ENERGY поможет!")
-    elif energy_level <= 6 and has_coffee:
-        return ("🟡 НЕСТАБИЛЬНАЯ ЭНЕРГИЯ", "Ты зависишь от кофе.", "Нужна помощь!")
-    else:
-        return ("🟢 ВСЕ ХОРОШО", "У тебя хорошая энергия.", "Приди в ENERGY!")
-
 async def start(update: Update, context):
-    user_id = update.effective_user.id
-    context.user_data["user_id"] = user_id
-    welcome_text = """
-🔋 **Привет! Добро пожаловать в ENERGY АНКЕТУ!**
+    context.user_data["scores"] = []
+    context.user_data["current_question"] = 0
+    
+    welcome = """
+🔋 **ПРИВЕТ! Я ТВЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!** 💚
 
-Эта анкета займет 5 минут.
+Это быстрый тест чтобы понять, почему ты устаёшь.
 
-**Вопрос 1️⃣: Твоё имя и фамилия?**
-    """
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
-    return WAITING_NAME
+Всего 10 простых вопросов - и ты получишь персональное заключение!
 
-async def get_name(update: Update, context):
-    context.user_data["name"] = update.message.text
-    await update.message.reply_text("✅ Спасибо! **Вопрос 2️⃣: Сколько тебе лет?**", parse_mode=ParseMode.MARKDOWN)
-    return WAITING_AGE
+⏱️ Займет всего 5 минут!
 
-async def get_age(update: Update, context):
-    context.user_data["age"] = update.message.text
-    await update.message.reply_text("✅ **Вопрос 3️⃣: Твой ник Telegram?**", parse_mode=ParseMode.MARKDOWN)
-    return WAITING_CONTACT
+Поехали? 🚀
+"""
+    
+    await update.message.reply_text(welcome, parse_mode=ParseMode.MARKDOWN)
+    
+    await ask_question(update, context, 0)
+    return QUESTION_1
 
-async def get_contact(update: Update, context):
-    context.user_data["contact"] = update.message.text
-    keyboard = [[InlineKeyboardButton(opt, callback_data=f"symptom_{i}")] for i, opt in enumerate(SYMPTOMS_OPTIONS)]
-    keyboard.append([InlineKeyboardButton("✅ Готово!", callback_data="symptoms_done")])
-    await update.message.reply_text("**Вопрос 4️⃣: Что ты замечаешь?**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-    context.user_data["symptoms"] = []
-    return WAITING_SYMPTOMS
+async def ask_question(update: Update, context, question_idx):
+    if question_idx >= len(QUESTIONS):
+        await show_results(update, context)
+        return RESULTS
+    
+    q = QUESTIONS[question_idx]
+    keyboard = [
+        [InlineKeyboardButton(opt[0], callback_data=f"q{q['num']}_{opt[1]}")]
+        for opt in q["options"]
+    ]
+    
+    await update.callback_query.edit_message_text(
+        f"{q['text']}\n\n",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
 
-async def handle_symptoms(update: Update, context):
+async def handle_answer(update: Update, context):
     query = update.callback_query
     await query.answer()
-    if query.data == "symptoms_done":
-        keyboard = [[InlineKeyboardButton(str(i), callback_data=f"energy_{i}")] for i in range(1, 11)]
-        await query.edit_message_text("**Вопрос 5️⃣: Оцени энергию (1-10):**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-        return WAITING_ENERGY
+    
+    data = query.data
+    score = int(data.split("_")[1])
+    context.user_data["scores"].append(score)
+    context.user_data["current_question"] += 1
+    
+    next_q = context.user_data["current_question"]
+    
+    if next_q < len(QUESTIONS):
+        await ask_question(update, context, next_q)
+        return QUESTION_1 + next_q
     else:
-        symptom_index = int(query.data.split("_")[1])
-        symptom = SYMPTOMS_OPTIONS[symptom_index]
-        if symptom not in context.user_data["symptoms"]:
-            context.user_data["symptoms"].append(symptom)
-        keyboard = [[InlineKeyboardButton(("✅ " if opt in context.user_data["symptoms"] else "") + opt, callback_data=f"symptom_{i}")] for i, opt in enumerate(SYMPTOMS_OPTIONS)]
-        keyboard.append([InlineKeyboardButton("✅ Готово!", callback_data="symptoms_done")])
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
-        return WAITING_SYMPTOMS
+        await show_results(update, context)
+        return RESULTS
 
-async def handle_energy(update: Update, context):
-    query = update.callback_query
-    await query.answer()
-    energy = int(query.data.split("_")[1])
-    context.user_data["energy"] = energy
-    keyboard = [[InlineKeyboardButton(opt, callback_data=f"water_{i}")] for i, opt in enumerate(WATER_OPTIONS)]
-    await query.edit_message_text(f"✅ Энергия: **{energy}/10**\n\n**Вопрос 6️⃣: Вода?**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-    return WAITING_WATER
+async def show_results(update: Update, context):
+    total_score = sum(context.user_data.get("scores", []))
+    
+    user_data = context.user_data
+    user_answers = {
+        "энергия_с_утра": user_data.get("scores", [None])[0],
+        "напиток": user_data.get("scores", [None])[1],
+        "завтрак": user_data.get("scores", [None])[2],
+        "после_еды": user_data.get("scores", [None])[3],
+        "вода": user_data.get("scores", [None])[4],
+        "кофе": user_data.get("scores", [None])[5],
+        "после_кофе": user_data.get("scores", [None])[6],
+        "сон": user_data.get("scores", [None])[7],
+        "пищеварение": user_data.get("scores", [None])[8],
+        "активность": user_data.get("scores", [None])[9],
+    }
+    
+    if total_score <= 12:
+        result = f"""
+✨ **ОТЛИЧНО! ХОРОШЕЕ СОСТОЯНИЕ!** ✨
 
-async def handle_water(update: Update, context):
-    query = update.callback_query
-    await query.answer()
-    water_index = int(query.data.split("_")[1])
-    context.user_data["water"] = WATER_OPTIONS[water_index]
-    level_name, description, recommendation = evaluate_results(context.user_data)
-    keyboard = [[InlineKeyboardButton("✅ Я в ENERGY!", callback_data="register_yes")], [InlineKeyboardButton("❓ Консультация", callback_data="register_consult")]]
-    results_text = f"{level_name}\n\n{description}\n\n**{recommendation}**"
-    await query.edit_message_text(results_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-    return CONFIRMATION
+Твой результат: **{total_score}/30 баллов** 🟢
 
-async def handle_confirmation(update: Update, context):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "register_yes":
-        instruction_text = f"""
-🎉 **ОТЛИЧНО!**
+💚 Твой организм работает хорошо!
+✓ Энергия на уровне
+✓ Сон в норме
+✓ Пищеварение в порядке
 
-Перейди по ссылке:
-{REGISTRATION_LINK}
+🎯 **Если хочешь МАКСИМАЛЬНОЙ энергии:**
+Я готова помочь тебе сделать это еще ЛУЧШЕ!
 
-Купи продукт и скидай скриншот сюда ⬇️
-        """
-        await query.edit_message_text(instruction_text)
-        return WAITING_SCREENSHOT
+📱 **Напиши мне в Telegram:**
+@e_moellmann
+
+Расскажешь свои цели, и мы создадим персональный план 
+для абсолютной энергии! 💪🚀
+"""
+    
+    elif total_score <= 20:
+        problems = []
+        if user_answers["энергия_с_утра"] >= 2:
+            problems.append("✗ Просыпаешься уставшей")
+        if user_answers["кофе"] >= 2:
+            problems.append("✗ Зависимость от кофе")
+        if user_answers["пищеварение"] >= 2:
+            problems.append("✗ Проблемы с пищеварением")
+        if user_answers["вода"] >= 2:
+            problems.append("✗ Пьешь мало чистой воды")
+        if user_answers["сон"] >= 2:
+            problems.append("✗ Нарушен сон")
+        
+        problems_text = "\n".join(problems[:3]) if problems else "✗ Несбалансированное питание"
+        
+        result = f"""
+⚠️ **ОРГАНИЗМ ПРОСИТ ПОМОЩИ!** ⚠️
+
+Твой результат: **{total_score}/30 баллов** 🟡
+
+🔍 **ВОТ ЧТО Я ВИЖУ:**
+{problems_text}
+
+Это еще не критично, но ждать нельзя!
+
+💚 **ENERGY создана ДЛЯ ТАКИХ СИТУАЦИЙ!**
+
+За 30 дней мы:
+✓ Восстановим твою энергию
+✓ Наладим пищеварение
+✓ Избавимся от усталости
+
+📱 **НАПИШИ МНЕ СЕЙЧАС:**
+@e_moellmann
+
+Мы разберемся вместе! 💪
+"""
+    
     else:
-        await query.edit_message_text("💬 Напиши: @e_moellmann")
-        return ConversationHandler.END
+        problems = []
+        if user_answers["энергия_с_утра"] >= 2:
+            problems.append("✗ Критическая усталость с утра")
+        if user_answers["кофе"] >= 2:
+            problems.append("✗ Зависимость от кофе")
+        if user_answers["пищеварение"] >= 2:
+            problems.append("✗ Серьезные проблемы ЖКТ")
+        if user_answers["вода"] >= 2:
+            problems.append("✗ Хроническое обезвоживание")
+        if user_answers["сон"] >= 2:
+            problems.append("✗ Нарушен сон, не отдыхаешь")
+        
+        problems_text = "\n".join(problems[:4]) if problems else "✗ Полное истощение организма"
+        
+        result = f"""
+🚨 **СТОП! ТВОЕ СОСТОЯНИЕ КРИТИЧЕСКОЕ!** 🚨
 
-async def handle_screenshot(update: Update, context):
-    if update.message.photo:
-        admin_text = f"📊 НОВЫЙ УЧАСТНИК!\n\nИмя: {context.user_data.get('name')}\nКонтакт: {context.user_data.get('contact')}"
-        try:
-            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode=ParseMode.MARKDOWN)
-        except:
-            pass
-        thanks_text = """
-✅ **СПАСИБО!**
+Твой результат: **{total_score}/30 баллов** 🔴
 
-Скриншот получен! Скоро добавлю в чат.
+⚠️ **ВОТ ЧТО ПРОИСХОДИТ:**
+{problems_text}
 
-💬 Напиши "АНКЕТА" сюда: @e_moellmann
+❌ Это не нормально! Это срочно!
 
-До встречи! 🔋✨
-        """
-        await update.message.reply_text(thanks_text, parse_mode=ParseMode.MARKDOWN)
-        return ConversationHandler.END
-    else:
-        await update.message.reply_text("Пришли скриншот (фото)")
-        return WAITING_SCREENSHOT
+💚 **ENERGY - ЭТО ТВО СПАСЕНИЕ!**
 
-async def cancel(update: Update, context):
-    await update.message.reply_text("❌ Отменено. До встречи!")
-    return ConversationHandler.END
+За 30 дней:
+✓ Вернешь энергию БЕЗ кофе
+✓ Восстановишь кишечник
+✓ Наладишь сон
+✓ Избавишься от усталости
+
+⚡ **ДЕЙСТВУЙ СЕЙЧАС:**
+📱 **Telegram: @e_moellmann**
+
+Напиши мне прямо сейчас!
+Это серьезно, не откладывай! 🔴
+"""
+    
+    await update.callback_query.edit_message_text(result, parse_mode=ParseMode.MARKDOWN)
+    
+    # Уведомление администратору
+    admin_msg = f"""
+📊 НОВАЯ АНКЕТА!
+
+Результат: {total_score}/30 баллов
+
+Пользователь: {update.callback_query.from_user.first_name} (@{update.callback_query.from_user.username})
+ID: {update.callback_query.from_user.id}
+"""
+    
+    try:
+        await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
+    except:
+        pass
 
 def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
+    
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            WAITING_NAME: [MessageHandler(filters.TEXT, get_name)],
-            WAITING_AGE: [MessageHandler(filters.TEXT, get_age)],
-            WAITING_CONTACT: [MessageHandler(filters.TEXT, get_contact)],
-            WAITING_SYMPTOMS: [CallbackQueryHandler(handle_symptoms)],
-            WAITING_ENERGY: [CallbackQueryHandler(handle_energy)],
-            WAITING_WATER: [CallbackQueryHandler(handle_water)],
-            CONFIRMATION: [CallbackQueryHandler(handle_confirmation)],
-            WAITING_SCREENSHOT: [MessageHandler(filters.PHOTO, handle_screenshot), MessageHandler(filters.TEXT, handle_screenshot)],
+            QUESTION_1: [CallbackQueryHandler(handle_answer)],
+            QUESTION_2: [CallbackQueryHandler(handle_answer)],
+            QUESTION_3: [CallbackQueryHandler(handle_answer)],
+            QUESTION_4: [CallbackQueryHandler(handle_answer)],
+            QUESTION_5: [CallbackQueryHandler(handle_answer)],
+            QUESTION_6: [CallbackQueryHandler(handle_answer)],
+            QUESTION_7: [CallbackQueryHandler(handle_answer)],
+            QUESTION_8: [CallbackQueryHandler(handle_answer)],
+            QUESTION_9: [CallbackQueryHandler(handle_answer)],
+            QUESTION_10: [CallbackQueryHandler(handle_answer)],
+            RESULTS: [CallbackQueryHandler(handle_answer)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[],
     )
+    
     application.add_handler(conv_handler)
+    
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     application.run_polling()
 
