@@ -119,7 +119,7 @@ async def start(update: Update, context):
 async def ask_question(query, context, q_idx):
     if q_idx >= 10:
         await show_results(query, context)
-        return 1
+        return ConversationHandler.END
     
     q = QUESTIONS[q_idx]
     kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in q["options"]]
