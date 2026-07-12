@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import os
-from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ConversationHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ConversationHandler, filters
 from telegram.constants import ParseMode
 import logging
 
@@ -15,9 +14,6 @@ if not TELEGRAM_TOKEN or ADMIN_ID == 0:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-(QUESTION_1, QUESTION_2, QUESTION_3, QUESTION_4, QUESTION_5, 
- QUESTION_6, QUESTION_7, QUESTION_8, QUESTION_9, QUESTION_10, RESULTS) = range(11)
 
 QUESTIONS = [
     {
@@ -134,27 +130,34 @@ async def start(update: Update, context):
 Всего 10 простых вопросов - и ты получишь персональное заключение!
 
 ⏱️ Займет всего 5 минут!
-
-Поехали? 🚀
 """
     
-    await update.message.reply_text(welcome, parse_mode=ParseMode.MARKDOWN)
+    keyboard = [[InlineKeyboardButton("✅ Поехали!", callback_data="start_test")]]
     
-    await ask_question(update, context, 0)
-    return QUESTION_1
+    await update.message.reply_text(
+        welcome, 
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    return 0
 
-async def ask_question(update: Update, context, question_idx):
-    if question_idx >= len(QUESTIONS):
-        await show_results(update, context)
-        return RESULTS
+async def start_test(update: Update, context):
+    query = update.callback_query
+    await query.answer()
     
-    q = QUESTIONS[question_idx]
+    context.user_data["current_question"] = 0
+    await show_question(query, context, 0)
+    return 1
+
+async def show_question(query, context, q_idx):
+    q = QUESTIONS[q_idx]
+    
     keyboard = [
-        [InlineKeyboardButton(opt[0], callback_data=f"q{q['num']}_{opt[1]}")]
+        [InlineKeyboardButton(opt[0], callback_data=f"ans_{q_idx}_{opt[1]}")]
         for opt in q["options"]
     ]
     
-    await update.callback_query.edit_message_text(
+    await query.edit_message_text(
         f"{q['text']}\n\n",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN
@@ -164,36 +167,24 @@ async def handle_answer(update: Update, context):
     query = update.callback_query
     await query.answer()
     
-    data = query.data
-    score = int(data.split("_")[1])
+    data = query.data.split("_")
+    q_idx = int(data[1])
+    score = int(data[2])
+    
     context.user_data["scores"].append(score)
     context.user_data["current_question"] += 1
     
     next_q = context.user_data["current_question"]
     
     if next_q < len(QUESTIONS):
-        await ask_question(update, context, next_q)
-        return QUESTION_1 + next_q
+        await show_question(query, context, next_q)
+        return 1
     else:
-        await show_results(update, context)
-        return RESULTS
+        await show_results(query, context)
+        return -1
 
-async def show_results(update: Update, context):
+async def show_results(query, context):
     total_score = sum(context.user_data.get("scores", []))
-    
-    user_data = context.user_data
-    user_answers = {
-        "энергия_с_утра": user_data.get("scores", [None])[0],
-        "напиток": user_data.get("scores", [None])[1],
-        "завтрак": user_data.get("scores", [None])[2],
-        "после_еды": user_data.get("scores", [None])[3],
-        "вода": user_data.get("scores", [None])[4],
-        "кофе": user_data.get("scores", [None])[5],
-        "после_кофе": user_data.get("scores", [None])[6],
-        "сон": user_data.get("scores", [None])[7],
-        "пищеварение": user_data.get("scores", [None])[8],
-        "активность": user_data.get("scores", [None])[9],
-    }
     
     if total_score <= 12:
         result = f"""
@@ -217,27 +208,14 @@ async def show_results(update: Update, context):
 """
     
     elif total_score <= 20:
-        problems = []
-        if user_answers["энергия_с_утра"] >= 2:
-            problems.append("✗ Просыпаешься уставшей")
-        if user_answers["кофе"] >= 2:
-            problems.append("✗ Зависимость от кофе")
-        if user_answers["пищеварение"] >= 2:
-            problems.append("✗ Проблемы с пищеварением")
-        if user_answers["вода"] >= 2:
-            problems.append("✗ Пьешь мало чистой воды")
-        if user_answers["сон"] >= 2:
-            problems.append("✗ Нарушен сон")
-        
-        problems_text = "\n".join(problems[:3]) if problems else "✗ Несбалансированное питание"
-        
         result = f"""
 ⚠️ **ОРГАНИЗМ ПРОСИТ ПОМОЩИ!** ⚠️
 
 Твой результат: **{total_score}/30 баллов** 🟡
 
 🔍 **ВОТ ЧТО Я ВИЖУ:**
-{problems_text}
+✗ Твой организм явно просит помощи
+✗ Вспомни, что именно хромает в твоих ответах
 
 Это еще не критично, но ждать нельзя!
 
@@ -255,27 +233,15 @@ async def show_results(update: Update, context):
 """
     
     else:
-        problems = []
-        if user_answers["энергия_с_утра"] >= 2:
-            problems.append("✗ Критическая усталость с утра")
-        if user_answers["кофе"] >= 2:
-            problems.append("✗ Зависимость от кофе")
-        if user_answers["пищеварение"] >= 2:
-            problems.append("✗ Серьезные проблемы ЖКТ")
-        if user_answers["вода"] >= 2:
-            problems.append("✗ Хроническое обезвоживание")
-        if user_answers["сон"] >= 2:
-            problems.append("✗ Нарушен сон, не отдыхаешь")
-        
-        problems_text = "\n".join(problems[:4]) if problems else "✗ Полное истощение организма"
-        
         result = f"""
 🚨 **СТОП! ТВОЕ СОСТОЯНИЕ КРИТИЧЕСКОЕ!** 🚨
 
 Твой результат: **{total_score}/30 баллов** 🔴
 
 ⚠️ **ВОТ ЧТО ПРОИСХОДИТ:**
-{problems_text}
+✗ Критическая усталость
+✗ Организм истощен
+✗ Нужна срочная помощь
 
 ❌ Это не нормально! Это срочно!
 
@@ -294,18 +260,9 @@ async def show_results(update: Update, context):
 Это серьезно, не откладывай! 🔴
 """
     
-    await update.callback_query.edit_message_text(result, parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_text(result, parse_mode=ParseMode.MARKDOWN)
     
-    # Уведомление администратору
-    admin_msg = f"""
-📊 НОВАЯ АНКЕТА!
-
-Результат: {total_score}/30 баллов
-
-Пользователь: {update.callback_query.from_user.first_name} (@{update.callback_query.from_user.username})
-ID: {update.callback_query.from_user.id}
-"""
-    
+    admin_msg = f"📊 Новый результат анкеты: {total_score}/30 баллов\nПользователь: {query.from_user.first_name}"
     try:
         await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
     except:
@@ -317,23 +274,13 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            QUESTION_1: [CallbackQueryHandler(handle_answer)],
-            QUESTION_2: [CallbackQueryHandler(handle_answer)],
-            QUESTION_3: [CallbackQueryHandler(handle_answer)],
-            QUESTION_4: [CallbackQueryHandler(handle_answer)],
-            QUESTION_5: [CallbackQueryHandler(handle_answer)],
-            QUESTION_6: [CallbackQueryHandler(handle_answer)],
-            QUESTION_7: [CallbackQueryHandler(handle_answer)],
-            QUESTION_8: [CallbackQueryHandler(handle_answer)],
-            QUESTION_9: [CallbackQueryHandler(handle_answer)],
-            QUESTION_10: [CallbackQueryHandler(handle_answer)],
-            RESULTS: [CallbackQueryHandler(handle_answer)],
+            0: [CallbackQueryHandler(start_test, pattern="^start_test$")],
+            1: [CallbackQueryHandler(handle_answer, pattern="^ans_")],
         },
         fallbacks=[],
     )
     
     application.add_handler(conv_handler)
-    
     logger.info("🚀 БОТ ЗАПУЩЕН!")
     application.run_polling()
 
