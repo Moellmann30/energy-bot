@@ -148,9 +148,22 @@ async def ask_question(query, context, q_idx):
         return ConversationHandler.END
         
     q = QUESTIONS[q_idx]
-    kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in q["options"]]
     
-    msg = f"<b>Вопрос {q_idx + 1}/{len(QUESTIONS)}</b>\n\n{q['text']}"
+    # Выносим варианты ответов в само текстовое сообщение
+    options_block = ""
+    for opt in q["options"]:
+        options_block += f"\n{opt[0]}"
+        
+    msg = f"<b>Вопрос {q_idx + 1}/{len(QUESTIONS)}</b>\n\n{q['text']}\n{options_block}\n\n<i>Нажми на нужный кружок снизу:</i>"
+    
+    # Создаем компактный горизонтальный ряд кнопок (только эмодзи)
+    keyboard_row = []
+    for opt in q["options"]:
+        emoji = opt[0].split()[0]  # Извлекаем только сам значок (✅, 🟡 и т.д.)
+        keyboard_row.append(InlineKeyboardButton(emoji, callback_data=f"ans_{opt[1]}_{q_idx}"))
+    
+    kb = [keyboard_row]
+    
     await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
     return 0
 
