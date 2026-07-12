@@ -110,20 +110,22 @@ QUESTIONS = [
 async def start(update: Update, context):
     context.user_data["scores"] = []
     
-    text = "🔋 **ПРИВЕТ! Я ТВОЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!** 💚\n\nЭто быстрый тест чтобы понять, почему ты устаёшь.\n\nВсего 10 простых вопросов - и ты получишь персональное заключение!\n\n⏱️ Займет всего 5 минут!\n\nПоехали? 🚀"
+    text = "🔋 <b>ПРИВЕТ! Я ТВОЯ ПОМОЩНИЦА ДЛЯ ЭНЕРГИИ!</b> 💚\n\nЭто быстрый тест чтобы понять, почему ты устаёшь.\n\nВсего 10 простых вопросов - и ты получишь персональное заключение!\n\n⏱️ Займет всего 5 минут!\n\nПоехали? 🚀"
     kb = [[InlineKeyboardButton("✅ Начинаем!", callback_data="go")]]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
     return 0
 
 async def ask_question(query, context, q_idx):
     if q_idx >= len(QUESTIONS):
-        return await show_results(query, context)
+        # Важно: вызываем show_results через await напрямую
+        await show_results(query, context)
+        return ConversationHandler.END
         
     q = QUESTIONS[q_idx]
     kb = [[InlineKeyboardButton(opt[0], callback_data=f"ans_{opt[1]}_{q_idx}")] for opt in q["options"]]
     
-    msg = f"**Вопрос {q_idx + 1}/{len(QUESTIONS)}**\n\n{q['text']}"
-    await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+    msg = f"<b>Вопрос {q_idx + 1}/{len(QUESTIONS)}</b>\n\n{q['text']}"
+    await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
     return 0
 
 async def handle_answer(update: Update, context):
@@ -133,7 +135,6 @@ async def handle_answer(update: Update, context):
     if query.data == "go":
         return await ask_question(query, context, 0)
     
-    # Безопасный парсинг данных кнопки
     try:
         parts = query.data.split("_")
         score = int(parts[1])
@@ -141,7 +142,6 @@ async def handle_answer(update: Update, context):
     except (ValueError, IndexError):
         return 0
 
-    # Защита на случай, если пользователь кликает старые кнопки или данные стерлись
     if "scores" not in context.user_data:
         context.user_data["scores"] = []
         
@@ -151,62 +151,62 @@ async def handle_answer(update: Update, context):
     return await ask_question(query, context, next_idx)
 
 async def show_results(query, context):
-    # Безопасный подсчет суммы
     scores = context.user_data.get("scores", [])
     total = sum(scores)
     
+    # Переписали разметку на безопасный HTML
     if total <= 12:
-        text = f"""✨ **ОТЛИЧНО! ХОРОШЕЕ СОСТОЯНИЕ!** ✨
+        text = f"""✨ <b>ОТЛИЧНО! ХОРОШЕЕ СОСТОЯНИЕ!</b> ✨
 
-Твой результат: **{total}/30 баллов** 🟢
+Твой результат: <b>{total}/30 баллов</b> 🟢
 
 💚 Твой организм работает хорошо!
 ✓ Энергия на уровне
 ✓ Сон в норме
 ✓ Пищеварение в порядке
 
-🎯 **Если хочешь МАКСИМАЛЬНОЙ энергии:**
+🎯 <b>Если хочешь МАКСИМАЛЬНОЙ энергии:</b>
 Я готова помочь тебе сделать это еще ЛУЧШЕ!
 
-📱 **Напиши мне в Telegram:**
+📱 <b>Напиши мне в Telegram:</b>
 @e_moellmann
 
 Расскажешь свои цели, и мы создадим персональный план для абсолютной энергии! 💪🚀"""
     
     elif total <= 20:
-        text = f"""⚠️ **ОРГАНИЗМ ПРОСИТ ПОМОЩИ!** ⚠️
+        text = f"""⚠️ <b>ОРГАНИЗМ ПРОСИТ ПОМОЩИ!</b> ⚠️
 
-Твой результат: **{total}/30 баллов** 🟡
+Твой результат: <b>{total}/30 баллов</b> 🟡
 
-🔍 **ВОТ ЧТО Я ВИЖУ:**
+🔍 <b>ВОТ ЧТО Я ВИЖУ:</b>
 Твой организм явно просит помощи!
 Это еще не критично, но ждать нельзя!
 
-💚 **ENERGY создана ДЛЯ ТАКИХ СИТУАЦИЙ!**
+💚 <b>ENERGY создана ДЛЯ ТАКИХ СИТУАЦИЙ!</b>
 
 За 30 дней мы:
 ✓ Восстановим твою энергию
 ✓ Наладим пищеварение
 ✓ Избавимся от усталости
 
-📱 **НАПИШИ МНЕ СЕЙЧАС:**
+📱 <b>НАПИШИ МНЕ СЕЙЧАС:</b>
 @e_moellmann
 
 Мы разберемся вместе! 💪"""
     
     else:
-        text = f"""🚨 **СТОП! ТВОЕ СОСТОЯНИЕ КРИТИЧЕСКОЕ!** 🚨
+        text = f"""🚨 <b>СТОП! ТВОЕ СОСТОЯНИЕ КРИТИЧЕСКОЕ!</b> 🚨
 
-Твой результат: **{total}/30 баллов** 🔴
+Твой результат: <b>{total}/30 баллов</b> 🔴
 
-⚠️ **ВОТ ЧТО ПРОИСХОДИТ:**
+⚠️ <b>ВОТ ЧТО ПРОИСХОДИТ:</b>
 ✗ Критическая усталость
 ✗ Организм истощен
 ✗ Нужна срочная помощь
 
 ❌ Это не нормально! Это срочно!
 
-💚 **ENERGY - ЭТО ТВОЕ СПАСЕНИЕ!**
+💚 <b>ENERGY - ЭТО ТВОЕ СПАСЕНИЕ!</b>
 
 За 30 дней:
 ✓ Вернешь энергию БЕЗ кофе
@@ -214,23 +214,26 @@ async def show_results(query, context):
 ✓ Наладишь сон
 ✓ Избавишься от усталости
 
-⚡ **ДЕЙСТВУЙ СЕЙЧАС:**
-📱 **Telegram: @e_moellmann**
+⚡ <b>ДЕЙСТВУЙ СЕЙЧАС:</b>
+📱 <b>Telegram: @e_moellmann</b>
 
 Напиши мне прямо сейчас!
 Это серьезно, не откладывай! 🔴"""
     
-    await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
+    try:
+        # Пробуем обновить текущее сообщение
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Не удалось отредактировать сообщение, отправляем новое: {e}")
+        # Если Telegram капризничает из-за замены клавиатуры на текст, отправляем результат новым сообщением
+        await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode=ParseMode.HTML)
     
     try:
         await context.bot.send_message(chat_id=ADMIN_ID, text=f"📊 Результат: {total}/30")
     except Exception as e:
         logger.error(f"Ошибка отправки админу: {e}")
         
-    # Очищаем данные сессии после завершения теста
     context.user_data.pop("scores", None)
-    
-    return ConversationHandler.END
 
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -238,7 +241,8 @@ def main():
     handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={0: [CallbackQueryHandler(handle_answer)]},
-        fallbacks=[CommandHandler("start", start)] # Позволяет перезапустить тест в любой момент
+        fallbacks=[CommandHandler("start", start)],
+        per_message=False # Гарантирует стабильность состояний для кнопок
     )
     
     app.add_handler(handler)
